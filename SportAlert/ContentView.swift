@@ -6,56 +6,69 @@
 //  Project Group 4
 
 import SwiftUI
-import SwiftData
+import MapKit
 
+// Main view displaying the map and saved locations.
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @StateObject private var locationManager = LocationManager()
+    @State private var searchText = ""
 
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+        NavigationView {
+            VStack {
+                // Display current location alert if available
+                if let alert = locationManager.currentLocationAlert {
+                    Text(alert)
+                        .foregroundColor(.white)
+                        .padding()
+                        .background(Color.green)
+                        .cornerRadius(10)
+                        .padding(.bottom)
+                }
+                
+                // Search field for searching addresses (no implementation yet)
+                TextField("Search Address", text: $searchText)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .padding()
+
+                // Map with user location and annotations
+                Map(coordinateRegion: $locationManager.region, showsUserLocation: true, annotationItems: locationManager.savedLocations) { location in
+                    MapAnnotation(coordinate: location.coordinate) {
+                        VStack {
+                            Image(systemName: "mappin.circle.fill")
+                                .font(.title)
+                                .foregroundColor(.red)
+                            Text(location.name)
+                                .font(.caption)
+                                .foregroundColor(.black)
+                        }
                     }
                 }
-                .onDelete(perform: deleteItems)
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
+                .edgesIgnoringSafeArea(.top)
+                .frame(height: 300)
+                
+                // List of saved locations
+                List {
+                    ForEach(locationManager.savedLocations) { location in
+                        HStack {
+                            Text(location.name)
+                            Spacer()
+                            Button("Remove") {
+                                locationManager.removeLocation(location)
+                            }
+                            .foregroundColor(.red)
+                        }
                     }
                 }
             }
-        } detail: {
-            Text("Select an item")
-        }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+            .navigationTitle("SpotAlert")
+            .onAppear {
+                locationManager.requestPermission()
+                locationManager.setInitialRegion(
+                    center: CLLocationCoordinate2D(latitude: 60.2176, longitude: 24.8041),
+                    name: "Karaportti 2, Espoo"
+                )
             }
         }
     }
-}
-
-#Preview {
-    ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
 }

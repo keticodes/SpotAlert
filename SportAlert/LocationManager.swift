@@ -1,4 +1,16 @@
-// LocationManager
+//
+//  LocationManager.swift
+//  SportAlert
+//
+//  Created by Keti Mandunga on 29.11.2024.
+//
+
+import SwiftUI
+import MapKit
+import CoreLocation
+import UserNotifications
+
+// ViewModel for handling location updates and notifications.
 class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let locationManager = CLLocationManager()
     private let notificationCenter = UNUserNotificationCenter.current()
@@ -10,125 +22,85 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     )
     @Published var savedLocations: [AlertLocation] = []
     @Published var currentLocationAlert: String? = nil
-    
+
     override init() {
         super.init()
         setupLocationManager()
     }
-    
+
     private func setupLocationManager() {
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyBest
-        locationManager.distanceFilter = 10 // Notify every 10 meters
+        locationManager.distanceFilter = 10
     }
-    
+
     func requestPermission() {
         locationManager.requestAlwaysAuthorization()
         notificationCenter.requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
-    
+
     func setInitialRegion(center: CLLocationCoordinate2D, name: String) {
         region = MKCoordinateRegion(
             center: center,
             span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
         )
-        
-        // Automatically add initial location
-        let initialLocation = AlertLocation(name: name, coordinate: center)
-        addLocation(initialLocation)
+        addLocation(AlertLocation(name: name, coordinate: center))
     }
-    
+
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         switch manager.authorizationStatus {
         case .authorizedAlways, .authorizedWhenInUse:
             locationManager.startUpdatingLocation()
-            locationManager.startMonitoringSignificantLocationChanges()
-        default:
-            break
+        default: break
         }
     }
-    
+
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let currentLocation = locations.last else { return }
-        
         location = currentLocation
-        region = MKCoordinateRegion(
-            center: currentLocation.coordinate,
-            span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
-        )
-        
+        region.center = currentLocation.coordinate
         checkProximityToSavedLocations(currentLocation)
     }
-    
+
     private func checkProximityToSavedLocations(_ currentLocation: CLLocation) {
-        var nearestLocation: AlertLocation? = nil
-        var minDistance = Double.infinity
-        
-        for location in savedLocations {
-            let locationCoordinate = location.coordinate
-            let savedLocation = CLLocation(latitude: locationCoordinate.latitude, 
-                                           longitude: locationCoordinate.longitude)
-            
-            let distance = currentLocation.distance(from: savedLocation)
-            
-            if distance <= 50 { // Within 50 meters
-                if distance < minDistance {
-                    minDistance = distance
-                    nearestLocation = location
-                }
-            }
+        let nearby = savedLocations.first { saved in
+            currentLocation.distance(from: CLLocation(
+                latitude: saved.coordinate.latitude,
+                longitude: saved.coordinate.longitude
+            )) <= 50
         }
         
-        if let nearestLocation = nearestLocation {
-            triggerLocationNotification(for: nearestLocation)
+        if let location = nearby {
+            triggerNotification(for: location)
             DispatchQueue.main.async {
-                self.currentLocationAlert = "You are at \(nearestLocation.name)"
+                self.currentLocationAlert = "You are near \(location.name)"
             }
         } else {
-            DispatchQueue.main.async {
-                self.currentLocationAlert = nil
-            }
+            DispatchQueue.main.async { self.currentLocationAlert = nil }
         }
     }
-    
-    private func triggerLocationNotification(for location: AlertLocation) {
+
+    private func triggerNotification(for location: AlertLocation) {
         let content = UNMutableNotificationContent()
         content.title = "SpotAlert"
-        content.body = "You have arrived at \(location.name)"
+        content.body = "You are near \(location.name)"
         content.sound = .default
-        
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+
         let request = UNNotificationRequest(
-            identifier: UUID().uuidString, 
-            content: content, 
-            trigger: trigger
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
         )
-        
         notificationCenter.add(request)
     }
-    
+
     func addLocation(_ location: AlertLocation) {
-        savedLocations.append(location)
-        
-        // Create geofence region
-        let region = CLCircularRegion(
-            center: location.coordinate,
-            radius: 50, // 50 meters
-            identifier: location.id.uuidString
-        )
-        region.notifyOnEntry = true
-        
-        locationManager.startMonitoring(for: region)
+        if !savedLocations.contains(location) {
+            savedLocations.append(location)
+        }
     }
-    
+
     func removeLocation(_ location: AlertLocation) {
         savedLocations.removeAll { $0.id == location.id }
-        
-        // Remove geofence monitoring
-        locationManager.stopMonitoring(for: CLCircularRegion(
-            center: location.coordinate,
-            radius: 50,
-            identifier: location.id.uuidString
-        ))
     }
 }
