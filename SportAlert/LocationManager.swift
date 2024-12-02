@@ -108,6 +108,19 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         )
         notificationCenter.add(request)
     }
+    
+    func updateReminder(for location: AlertLocation, with newReminder: String) {
+        if let index = savedLocations.firstIndex(where: { $0.id == location.id }) {
+            savedLocations[index] = AlertLocation(
+                name: location.name,
+                coordinate: location.coordinate,
+                reminder: newReminder
+            )
+            saveLocations() // Save the updated locations to UserDefaults
+        }
+    }
+
+
 
     func searchLocation(for query: String, completion: @escaping (CLLocationCoordinate2D?) -> Void) {
         let request = MKLocalSearch.Request()
