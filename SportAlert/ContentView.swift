@@ -70,14 +70,22 @@ struct ContentView: View {
                                 }
                             }
                             Spacer()
+                            // Edit Button Action
                             Button(action: {
+                                // Set the current location and its reminder text for editing
                                 currentEditingLocation = location
-                                newReminderText = location.reminder
+                                newReminderText = location.reminder // Ensure this is set properly for editing
+                                
+                                // Debugging: Check that currentEditingLocation is correctly set
+                                print("Current editing location: \(String(describing: currentEditingLocation))")
+                                
+                                // Trigger the sheet to appear
                                 isEditingReminder = true
                             }) {
-                                Text("Edit")
-                                    .foregroundColor(.blue)
+                                Text("")
                             }
+
+
                             Button(action: {
                                 locationManager.removeLocation(location)
                             }) {
@@ -88,17 +96,23 @@ struct ContentView: View {
                         }
                     }
                 }
+
                 .sheet(isPresented: $isEditingReminder) {
+                    // Ensure that currentEditingLocation is unwrapped safely
                     if let location = currentEditingLocation {
                         VStack(spacing: 16) {
                             Text("Edit Reminder for \(location.name)")
                                 .font(.headline)
+                            
                             TextField("Enter new reminder", text: $newReminderText)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .padding()
+                            
                             Button("Save") {
-                                // Save the updated reminder
+                                // Save the updated reminder to the location
                                 locationManager.updateReminder(for: location, with: newReminderText)
+                                
+                                // Close the sheet and reset values
                                 isEditingReminder = false
                                 currentEditingLocation = nil
                             }
@@ -107,6 +121,8 @@ struct ContentView: View {
                         .padding()
                     }
                 }
+
+
 
             }
             .navigationTitle("SpotAlert")

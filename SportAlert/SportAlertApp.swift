@@ -12,6 +12,7 @@ struct SpotAlertApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+            
         }
     }
 }

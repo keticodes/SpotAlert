@@ -65,6 +65,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         }
     }
 
+    // Ensure that saved locations are loaded on app startup.
     func loadLocations() {
         let decoder = JSONDecoder()
         if let data = UserDefaults.standard.data(forKey: "savedLocations"),
@@ -72,6 +73,7 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             savedLocations = decoded
         }
     }
+
 
     private func checkProximityToSavedLocations(_ currentLocation: CLLocation) {
         let now = Date()
@@ -114,11 +116,12 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             savedLocations[index] = AlertLocation(
                 name: location.name,
                 coordinate: location.coordinate,
-                reminder: newReminder
+                reminder: newReminder // Update the reminder with the new value
             )
-            saveLocations() // Save the updated locations to UserDefaults
+            saveLocations() // Ensure the updated locations are saved
         }
     }
+
 
 
 
