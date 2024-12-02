@@ -1,14 +1,6 @@
-//
-//  ContentView.swift
-//  SportAlert
-//
-//  Created by Keti Mandunga on 11.11.2024.
-//  Project Group 4
-
 import SwiftUI
 import MapKit
 
-// Main view displaying the map and saved locations.
 struct ContentView: View {
     @StateObject private var locationManager = LocationManager()
     @State private var searchText = ""
@@ -16,7 +8,6 @@ struct ContentView: View {
     var body: some View {
         NavigationView {
             VStack {
-                // Display current location alert if available
                 if let alert = locationManager.currentLocationAlert {
                     Text(alert)
                         .foregroundColor(.white)
@@ -26,12 +17,12 @@ struct ContentView: View {
                         .padding(.bottom)
                 }
                 
-                // Search field for searching addresses (no implementation yet)
-                TextField("Search Address", text: $searchText)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .padding()
+                TextField("Search Address", text: $searchText, onCommit: {
+                    searchForLocation()
+                })
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .padding()
 
-                // Map with user location and annotations
                 Map(coordinateRegion: $locationManager.region, showsUserLocation: true, annotationItems: locationManager.savedLocations) { location in
                     MapAnnotation(coordinate: location.coordinate) {
                         VStack {
@@ -46,8 +37,7 @@ struct ContentView: View {
                 }
                 .edgesIgnoringSafeArea(.top)
                 .frame(height: 300)
-                
-                // List of saved locations
+
                 List {
                     ForEach(locationManager.savedLocations) { location in
                         HStack {
@@ -64,11 +54,20 @@ struct ContentView: View {
             .navigationTitle("SpotAlert")
             .onAppear {
                 locationManager.requestPermission()
-                locationManager.setInitialRegion(
-                    center: CLLocationCoordinate2D(latitude: 60.2176, longitude: 24.8041),
-                    name: "Karaportti 2, Espoo"
-                )
+                locationManager.loadLocations()
             }
+        }
+    }
+
+    private func searchForLocation() {
+        guard !searchText.isEmpty else { return }
+        locationManager.searchLocation(for: searchText) { coordinate in
+            guard let coordinate = coordinate else {
+                print("Location not found")
+                return
+            }
+            let newLocation = AlertLocation(name: searchText, coordinate: coordinate)
+            locationManager.addLocation(newLocation)
         }
     }
 }

@@ -1,16 +1,8 @@
-//
-//  LocationManager.swift
-//  SportAlert
-//
-//  Created by Keti Mandunga on 29.11.2024.
-//
-
 import SwiftUI
 import MapKit
 import CoreLocation
 import UserNotifications
 
-// ViewModel for handling location updates and notifications.
 class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let locationManager = CLLocationManager()
     private let notificationCenter = UNUserNotificationCenter.current()
@@ -22,6 +14,8 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     )
     @Published var savedLocations: [AlertLocation] = []
     @Published var currentLocationAlert: String? = nil
+    
+    private var lastNotificationTimestamp: [UUID: Date] = [:]
 
     override init() {
         super.init()
@@ -39,19 +33,9 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         notificationCenter.requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
-    func setInitialRegion(center: CLLocationCoordinate2D, name: String) {
-        region = MKCoordinateRegion(
-            center: center,
-            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
-        )
-        addLocation(AlertLocation(name: name, coordinate: center))
-    }
-
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        switch manager.authorizationStatus {
-        case .authorizedAlways, .authorizedWhenInUse:
+        if manager.authorizationStatus == .authorizedAlways || manager.authorizationStatus == .authorizedWhenInUse {
             locationManager.startUpdatingLocation()
-        default: break
         }
     }
 
@@ -62,19 +46,50 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         checkProximityToSavedLocations(currentLocation)
     }
 
+    func addLocation(_ location: AlertLocation) {
+        if !savedLocations.contains(location) {
+            savedLocations.append(location)
+            saveLocations()
+        }
+    }
+
+    func removeLocation(_ location: AlertLocation) {
+        savedLocations.removeAll { $0.id == location.id }
+        saveLocations()
+    }
+
+    func saveLocations() {
+        let encoder = JSONEncoder()
+        if let encoded = try? encoder.encode(savedLocations) {
+            UserDefaults.standard.set(encoded, forKey: "savedLocations")
+        }
+    }
+
+    func loadLocations() {
+        let decoder = JSONDecoder()
+        if let data = UserDefaults.standard.data(forKey: "savedLocations"),
+           let decoded = try? decoder.decode([AlertLocation].self, from: data) {
+            savedLocations = decoded
+        }
+    }
+
     private func checkProximityToSavedLocations(_ currentLocation: CLLocation) {
+        let now = Date()
         let nearby = savedLocations.first { saved in
-            currentLocation.distance(from: CLLocation(
-                latitude: saved.coordinate.latitude,
-                longitude: saved.coordinate.longitude
-            )) <= 50
+            let distance = currentLocation.distance(from: CLLocation(latitude: saved.coordinate.latitude, longitude: saved.coordinate.longitude))
+            guard distance <= 50 else { return false }
+
+            let lastTriggered = lastNotificationTimestamp[saved.id]
+            if let lastTriggered = lastTriggered, now.timeIntervalSince(lastTriggered) < 300 {
+                return false
+            }
+            lastNotificationTimestamp[saved.id] = now
+            return true
         }
         
         if let location = nearby {
             triggerNotification(for: location)
-            DispatchQueue.main.async {
-                self.currentLocationAlert = "You are near \(location.name)"
-            }
+            DispatchQueue.main.async { self.currentLocationAlert = "You are near \(location.name)" }
         } else {
             DispatchQueue.main.async { self.currentLocationAlert = nil }
         }
@@ -94,13 +109,16 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         notificationCenter.add(request)
     }
 
-    func addLocation(_ location: AlertLocation) {
-        if !savedLocations.contains(location) {
-            savedLocations.append(location)
+    func searchLocation(for query: String, completion: @escaping (CLLocationCoordinate2D?) -> Void) {
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = query
+        let search = MKLocalSearch(request: request)
+        search.start { response, error in
+            guard let coordinate = response?.mapItems.first?.placemark.coordinate else {
+                completion(nil)
+                return
+            }
+            completion(coordinate)
         }
-    }
-
-    func removeLocation(_ location: AlertLocation) {
-        savedLocations.removeAll { $0.id == location.id }
     }
 }
