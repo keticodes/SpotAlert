@@ -1,12 +1,18 @@
+//
+//  ContentView.swift
+//  SpotAlert
+//
+//  Created by Keti Mandunga on 11.11.2024.
+//
+
 import SwiftUI
 import MapKit
+import CoreLocation
 
 struct ContentView: View {
     @StateObject private var locationManager = LocationManager()
     @State private var searchText = ""
     @State private var reminderText = ""
-
-    // State for managing the edit mode
     @State private var isEditingReminder = false
     @State private var currentEditingLocation: AlertLocation? = nil
     @State private var newReminderText: String = ""
@@ -70,22 +76,13 @@ struct ContentView: View {
                                 }
                             }
                             Spacer()
-                            // Edit Button Action
                             Button(action: {
-                                // Set the current location and its reminder text for editing
-                                currentEditingLocation = location
-                                newReminderText = location.reminder // Ensure this is set properly for editing
-                                
-                                // Debugging: Check that currentEditingLocation is correctly set
-                                print("Current editing location: \(String(describing: currentEditingLocation))")
-                                
-                                // Trigger the sheet to appear
-                                isEditingReminder = true
+                                locationManager.startMonitoringLocation(location)
                             }) {
-                                Text("")
+                                Text("Track")
+                                    .foregroundColor(.blue)
                             }
-
-
+                            
                             Button(action: {
                                 locationManager.removeLocation(location)
                             }) {
@@ -96,52 +93,43 @@ struct ContentView: View {
                         }
                     }
                 }
-
-                .sheet(isPresented: $isEditingReminder) {
-                    // Ensure that currentEditingLocation is unwrapped safely
-                    if let location = currentEditingLocation {
-                        VStack(spacing: 16) {
-                            Text("Edit Reminder for \(location.name)")
-                                .font(.headline)
-                            
-                            TextField("Enter new reminder", text: $newReminderText)
-                                .textFieldStyle(RoundedBorderTextFieldStyle())
-                                .padding()
-                            
-                            Button("Save") {
-                                // Save the updated reminder to the location
-                                locationManager.updateReminder(for: location, with: newReminderText)
-                                
-                                // Close the sheet and reset values
-                                isEditingReminder = false
-                                currentEditingLocation = nil
-                            }
-                            .buttonStyle(.borderedProminent)
-                        }
-                        .padding()
-                    }
-                }
-
-
-
             }
             .navigationTitle("SpotAlert")
             .onAppear {
                 locationManager.requestPermission()
                 locationManager.loadLocations()
+                locationManager.sendNotification(
+                    title: "SpotAlert Opened",
+                    body: "Welcome back! Your location tracking is active."
+                )
             }
         }
     }
 
     func saveLocation() {
-        guard !searchText.isEmpty else { return }
+        guard !searchText.isEmpty else {
+            locationManager.sendNotification(
+                title: "Location Save Failed",
+                body: "Please enter a valid location"
+            )
+            return
+        }
         locationManager.searchLocation(for: searchText) { coordinate in
             guard let coordinate = coordinate else {
-                print("Location not found")
+                locationManager.sendNotification(
+                    title: "Location Not Found",
+                    body: "Could not find the specified location"
+                )
                 return
             }
             let newLocation = AlertLocation(name: searchText, coordinate: coordinate, reminder: reminderText)
             locationManager.addLocation(newLocation)
+            
+            locationManager.sendNotification(
+                title: "Location Saved",
+                body: "'\(searchText)' has been added to SpotAlert"
+            )
+            
             searchText = ""
             reminderText = ""
         }

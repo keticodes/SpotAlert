@@ -1,3 +1,5 @@
+
+import Foundation
 import CoreLocation
 
 struct AlertLocation: Identifiable, Codable, Hashable {
@@ -36,7 +38,6 @@ struct AlertLocation: Identifiable, Codable, Hashable {
         try container.encode(reminder, forKey: .reminder)
     }
 
-    // Custom Equatable conformance
     static func == (lhs: AlertLocation, rhs: AlertLocation) -> Bool {
         lhs.id == rhs.id &&
         lhs.name == rhs.name &&

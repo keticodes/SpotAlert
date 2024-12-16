@@ -1,140 +1,127 @@
+//
+//  LocationManager.swift
+//  SpotAlert
+//
+//  Created by Keti Mandunga on 11.11.2024.
+//
+
 import SwiftUI
-import MapKit
 import CoreLocation
+import MapKit
 import UserNotifications
 
 class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let locationManager = CLLocationManager()
     private let notificationCenter = UNUserNotificationCenter.current()
     
-    @Published var location: CLLocation?
     @Published var region = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 60.2176, longitude: 24.8041),
-        span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+        center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
+        span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
     )
     @Published var savedLocations: [AlertLocation] = []
-    @Published var currentLocationAlert: String? = nil
+    @Published var currentLocationAlert: String?
     
-    private var lastNotificationTimestamp: [UUID: Date] = [:]
-
     override init() {
         super.init()
         setupLocationManager()
+        requestNotificationPermissions()
+        loadLocations()
     }
-
+    
     private func setupLocationManager() {
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyBest
-        locationManager.distanceFilter = 10
-    }
-
-    func requestPermission() {
-        locationManager.requestAlwaysAuthorization()
-        notificationCenter.requestAuthorization(options: [.alert, .sound]) { _, _ in }
-    }
-
-    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        if manager.authorizationStatus == .authorizedAlways || manager.authorizationStatus == .authorizedWhenInUse {
-            locationManager.startUpdatingLocation()
-        }
-    }
-
-    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let currentLocation = locations.last else { return }
-        location = currentLocation
-        region.center = currentLocation.coordinate
-        checkProximityToSavedLocations(currentLocation)
-    }
-
-    func addLocation(_ location: AlertLocation) {
-        if !savedLocations.contains(location) {
-            savedLocations.append(location)
-            saveLocations()
-        }
-    }
-
-    func removeLocation(_ location: AlertLocation) {
-        savedLocations.removeAll { $0.id == location.id }
-        saveLocations()
-    }
-
-    func saveLocations() {
-        let encoder = JSONEncoder()
-        if let encoded = try? encoder.encode(savedLocations) {
-            UserDefaults.standard.set(encoded, forKey: "savedLocations")
-        }
-    }
-
-    // Ensure that saved locations are loaded on app startup.
-    func loadLocations() {
-        let decoder = JSONDecoder()
-        if let data = UserDefaults.standard.data(forKey: "savedLocations"),
-           let decoded = try? decoder.decode([AlertLocation].self, from: data) {
-            savedLocations = decoded
-        }
-    }
-
-
-    private func checkProximityToSavedLocations(_ currentLocation: CLLocation) {
-        let now = Date()
-        let nearby = savedLocations.first { saved in
-            let distance = currentLocation.distance(from: CLLocation(latitude: saved.coordinate.latitude, longitude: saved.coordinate.longitude))
-            guard distance <= 50 else { return false }
-
-            let lastTriggered = lastNotificationTimestamp[saved.id]
-            if let lastTriggered = lastTriggered, now.timeIntervalSince(lastTriggered) < 300 {
-                return false
-            }
-            lastNotificationTimestamp[saved.id] = now
-            return true
-        }
-        
-        if let location = nearby {
-            triggerNotification(for: location)
-            DispatchQueue.main.async { self.currentLocationAlert = "You are near \(location.name)" }
-        } else {
-            DispatchQueue.main.async { self.currentLocationAlert = nil }
-        }
-    }
-
-    private func triggerNotification(for location: AlertLocation) {
-        let content = UNMutableNotificationContent()
-        content.title = "SpotAlert"
-        content.body = "You are near \(location.name)"
-        content.sound = .default
-
-        let request = UNNotificationRequest(
-            identifier: UUID().uuidString,
-            content: content,
-            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
-        )
-        notificationCenter.add(request)
     }
     
-    func updateReminder(for location: AlertLocation, with newReminder: String) {
-        if let index = savedLocations.firstIndex(where: { $0.id == location.id }) {
-            savedLocations[index] = AlertLocation(
-                name: location.name,
-                coordinate: location.coordinate,
-                reminder: newReminder // Update the reminder with the new value
-            )
-            saveLocations() // Ensure the updated locations are saved
+    private func requestNotificationPermissions() {
+        notificationCenter.requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
+            if granted {
+                print("Notification permissions granted")
+            } else if let error = error {
+                print("Notification permission error: \(error.localizedDescription)")
+            }
         }
     }
-
-
-
-
+    
+    func requestPermission() {
+        locationManager.requestAlwaysAuthorization()
+    }
+    
     func searchLocation(for query: String, completion: @escaping (CLLocationCoordinate2D?) -> Void) {
-        let request = MKLocalSearch.Request()
-        request.naturalLanguageQuery = query
-        let search = MKLocalSearch(request: request)
-        search.start { response, error in
-            guard let coordinate = response?.mapItems.first?.placemark.coordinate else {
+        let geocoder = CLGeocoder()
+        geocoder.geocodeAddressString(query) { placemarks, error in
+            guard let placemark = placemarks?.first,
+                  let location = placemark.location else {
                 completion(nil)
                 return
             }
-            completion(coordinate)
+            completion(location.coordinate)
         }
+    }
+    
+    func addLocation(_ location: AlertLocation) {
+        savedLocations.append(location)
+        saveLocations()
+        sendNotification(title: "New Location Saved", body: "Location '\(location.name)' has been added to SpotAlert.")
+    }
+    
+    func removeLocation(_ location: AlertLocation) {
+        savedLocations.removeAll { $0.id == location.id }
+        saveLocations()
+        sendNotification(title: "Location Removed", body: "Location '\(location.name)' has been deleted from SpotAlert.")
+    }
+    
+    private func saveLocations() {
+        let encoder = JSONEncoder()
+        if let encoded = try? encoder.encode(savedLocations) {
+            UserDefaults.standard.set(encoded, forKey: "SavedLocations")
+        }
+    }
+    
+    func loadLocations() {
+        if let savedLocationsData = UserDefaults.standard.object(forKey: "SavedLocations") as? Data {
+            let decoder = JSONDecoder()
+            if let loadedLocations = try? decoder.decode([AlertLocation].self, from: savedLocationsData) {
+                savedLocations = loadedLocations
+            }
+        }
+    }
+    
+    func sendNotification(title: String, body: String) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: trigger)
+        
+        notificationCenter.add(request) { error in
+            if let error = error {
+                print("Error sending notification: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    // Location monitoring methods
+    func startMonitoringLocation(_ location: AlertLocation) {
+        let region = CLCircularRegion(
+            center: location.coordinate,
+            radius: 100, // 100 meters
+            identifier: location.id.uuidString
+        )
+        region.notifyOnEntry = true
+        region.notifyOnExit = true
+        
+        locationManager.startMonitoring(for: region)
+        sendNotification(title: "Location Monitoring", body: "Now tracking \(location.name)")
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {
+        sendNotification(title: "Location Entered", body: "You've arrived near \(region.identifier)")
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didExitRegion region: CLRegion) {
+        sendNotification(title: "Location Exited", body: "You've left the area of \(region.identifier)")
     }
 }
