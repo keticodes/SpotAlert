@@ -1,10 +1,3 @@
-//
-//  ContentView.swift
-//  SpotAlert
-//
-//  Created by Keti Mandunga on 11.11.2024.
-//
-
 import SwiftUI
 import MapKit
 import CoreLocation
@@ -72,26 +65,23 @@ struct ContentView: View {
                                         .foregroundColor(.gray)
                                 }
                             }
+                            
                             Spacer()
-                            
-                            // Edit Reminder Button
-                            Button(action: {
-                                currentEditingLocation = location
-                                newReminderText = location.reminder
-                                isEditingReminder = true
-                            }) {
-                                Image(systemName: "pencil")
-                                    .foregroundColor(.blue)
-                            }
-                            
-                           
-                        
-                            // Remove Location Button
-                            Button(action: {
-                                locationManager.removeLocation(location)
-                            }) {
-                                Image(systemName: "trash")
-                                    .foregroundColor(.red)
+                            // HStack for Edit and Remove buttons
+                                      HStack(spacing: 16) {
+                                          // Edit Reminder Button
+                                          Button(action: {
+                                              currentEditingLocation = location
+                                              newReminderText = location.reminder
+                                              isEditingReminder = true
+                                          }) {
+                                              Image(systemName: "pencil.circle.fill")
+                                                  .foregroundColor(.blue)
+                                          }
+                                          
+                                       
+                                        
+                                
                             }
                         }
                     }
@@ -160,3 +150,4 @@ struct ContentView: View {
         }
     }
 }
+

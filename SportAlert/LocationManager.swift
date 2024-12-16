@@ -132,4 +132,19 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
             body: "📍 Navigating to \(location.name)"
         )
     }
+    func checkProximityToSavedLocations() {
+            guard let currentLocation = locationManager.location else { return }
+            
+            for savedLocation in savedLocations {
+                let location = CLLocation(latitude: savedLocation.coordinate.latitude, longitude: savedLocation.coordinate.longitude)
+                let distance = currentLocation.distance(from: location)
+                
+                if distance <= 200 {
+                    sendNotification(
+                        title: "📍 Proximity Alert",
+                        body: "You are within 200 meters of \(savedLocation.name)"
+                    )
+                }
+            }
+        }
 }
