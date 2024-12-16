@@ -1,3 +1,9 @@
+//
+//  AlertLocation.swift
+//  SpotAlert
+//
+//  Created by Keti Mandunga on 11.11.2024.
+//
 
 import Foundation
 import CoreLocation

@@ -15,8 +15,9 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     private let notificationCenter = UNUserNotificationCenter.current()
     
     @Published var region = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
-        span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
+        // Starting point at Rautatientori (Helsinki Central Railway Station)
+        center: CLLocationCoordinate2D(latitude: 60.1699, longitude: 24.9384),
+        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
     )
     @Published var savedLocations: [AlertLocation] = []
     @Published var currentLocationAlert: String?
@@ -62,13 +63,30 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
     func addLocation(_ location: AlertLocation) {
         savedLocations.append(location)
         saveLocations()
-        sendNotification(title: "New Location Saved", body: "Location '\(location.name)' has been added to SpotAlert.")
+        sendNotification(title: "🗺️ New Location Saved", body: "📍 Location '\(location.name)' has been added to SpotAlert.")
+    }
+    
+    func updateLocation(_ location: AlertLocation, newReminder: String) {
+        if let index = savedLocations.firstIndex(where: { $0.id == location.id }) {
+            // Create a new location with updated reminder
+            let updatedLocation = AlertLocation(
+                name: location.name,
+                coordinate: location.coordinate,
+                reminder: newReminder
+            )
+            savedLocations[index] = updatedLocation
+            saveLocations()
+            sendNotification(
+                title: "🔄 Location Updated",
+                body: "📍 Reminder for '\(location.name)' has been modified."
+            )
+        }
     }
     
     func removeLocation(_ location: AlertLocation) {
         savedLocations.removeAll { $0.id == location.id }
         saveLocations()
-        sendNotification(title: "Location Removed", body: "Location '\(location.name)' has been deleted from SpotAlert.")
+        sendNotification(title: "🗑️ Location Removed", body: "📍 Location '\(location.name)' has been deleted from SpotAlert.")
     }
     
     private func saveLocations() {
@@ -103,25 +121,15 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         }
     }
     
-    // Location monitoring methods
-    func startMonitoringLocation(_ location: AlertLocation) {
-        let region = CLCircularRegion(
+    // Focus map on a specific location
+    func focusOnLocation(_ location: AlertLocation) {
+        region = MKCoordinateRegion(
             center: location.coordinate,
-            radius: 100, // 100 meters
-            identifier: location.id.uuidString
+            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
         )
-        region.notifyOnEntry = true
-        region.notifyOnExit = true
-        
-        locationManager.startMonitoring(for: region)
-        sendNotification(title: "Location Monitoring", body: "Now tracking \(location.name)")
-    }
-    
-    func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {
-        sendNotification(title: "Location Entered", body: "You've arrived near \(region.identifier)")
-    }
-    
-    func locationManager(_ manager: CLLocationManager, didExitRegion region: CLRegion) {
-        sendNotification(title: "Location Exited", body: "You've left the area of \(region.identifier)")
+        sendNotification(
+            title: "🗺️ Location Focused",
+            body: "📍 Navigating to \(location.name)"
+        )
     }
 }
